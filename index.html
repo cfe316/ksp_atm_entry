@@ -1,10 +1,10 @@
 <!DOCTYPE html>
 <html lang="en">
 	<head>
-	<title>KSP Aerobraking Calculator</title>
+	<title>KSP Atmospheric Entry Timing Calculator</title>
 	<meta name="viewport" content="width=device-width, initial-scale=1.0">
-	<meta name="description" content="Aerobraking Calculator for Kerbal Space Program (KSP) Calculates the optimal aerobraking altitude for a desired orbit.">
-	<meta name="author" content="Alterbaron">
+	<meta name="description" content="Atmospheric Entry Timing Calculator for Kerbal Space Program (KSP) Calculates the time until atmospheric entry, max Q, and Mach 1">
+	<meta name="author" content="cfe316">
 	<!-- Bootstrap	-->
 	<link href="css/bootstrap.min.css" rel="stylesheet" media="screen">
 	<link href="css/main.css" rel="stylesheet" media="screen">
@@ -18,33 +18,30 @@
 	<div class="container">
 		<div class="row">
 		<div class="span12">
-		<h1 class="text-center">KSP Aerobraking Calculator</h1>
+		<h1 class="text-center"></h1>KSP Atmospheric Entry Timing Calculator</h1>
 		<div class="row">
 			<div class="span8">
-			<p class="lead">Enter your <strong>current altitude</strong>, <strong>orbital velocity</strong>, and <strong>periapsis distance</strong> into the calculator at right. Then, enter the <strong>apoapsis distance</strong> you want after aerobraking. The calculator will find a manoeuver to get you there.</p>
+			<p class="lead">Enter your <strong>current altitude</strong>, <strong>orbital velocity</strong>, and <strong>periapsis distance</strong> into the calculator at right. The calculator will give the time in (h, m, s) till atmospheric entry, Max Q, and 250 m/s.</p>
 			<h2>How to Use the Solution</h2>
 			<p>
-			The solution found by the calculator is in the form of an orbital manoeuver. Point your craft at the angle given by the calculator and thrust until the orbit periapsis matches that given by the solution. Your orbital velocity should not significantly change.
-			</p>
-			<p>
-			<strong>Note on the angles:</strong> Angles are measured from the top of the navball. The direction in which to thrust will always be directly between the prograde and retrograde markers (i.e. perpendicular to your direction of travel.)
+			If your ship is controlled via a computer, tell it to retract fragile solar panels, antennas, etc before atmospheric entry, and to deploy parachutes after slowing ~250 m/s.
 			</p>
 			<h2>Suggestions for Best Results</h2>
-			<p>
-			Before running the calculator, adjust your orbit so that the periapsis is <strong>slightly above</strong> the atmosphere of the target body. In some cases, if your periapsis is too deep within the planet's atmosphere, the calculator has trouble finding a solution.
-			</p>
 			<p>
 			The calculator will probably not work for ships with lift surfaces, because the lift force depends on the craft's orientation in the atmosphere. Lift forces are not considered.
 			</p>
 			<p>
-			Sometimes, when coming out of timewarp, the periapsis will jump around a bit, potentially messing up the aerobraking manoeuver. If this happens, just re-run the calculator with the new orbit data to determine the required course correction.
+			Sometimes, when coming out of timewarp, the periapsis will jump around a bit, potentially messing up the re-entry maneuver...
 			</p>
 			<h2>How it Works</h2>
 			<p>
-			This calculator searches for constant-velocity manoeuvers that, after aerobraking, result in an orbit with the desired apoapsis. This is done by fixing the current altitude and velocity, and varying the periapsis of the orbit. The periapsis resulting in the desired orbit is then calculated.
+			RK4 (I hope!)
 			</p>
 			<p>
-			Given a current altitude, orbital velocity, and periapsis, we have enough information to resolve the orbit of the ship (there are some ambiguities in orientation, but they do not matter for this problem). The point of intersection of this orbit with the atmosphere and the velocity of the ship at that point are calculated. Using these data, the trajectory in the atmosphere is determined using numerical methods. The velocity at which the ship escapes the atmosphere is found, and used to compute the new orbit.
+			Given a current altitude, orbital velocity, and periapsis, we have enough information to resolve the orbit of the ship (there are some ambiguities in orientation, but they do not matter for this problem).
+			The point of intersection of this orbit with the atmosphere and the velocity of the ship at that point are calculated. Using these data, the trajectory in the atmosphere is determined using numerical methods.
+			If the ship escapes, the velocity at which the ship escapes the atmosphere is found, and used to compute the new orbit.
+			If the ship reaches the ground ... 
 			</p>
 			<h2>Q&amp;A</h2>
 			<dl>
@@ -86,7 +83,7 @@
 						<div class="control-group">
 							<label class="control-label" for="inputPE">Periapsis</label>
 							<div class="controls">
-								<input type="text" id="inputPE" value="60 km">
+								<input type="text" id="inputPE" value="40 km">
 							</div>
 						</div>
 						<p class="text-info">Select the direction of your orbit for more accurate results.</p>
