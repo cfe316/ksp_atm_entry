@@ -1,4 +1,4 @@
-ksp_aerocalc
+ksp_reentry_timing
 ============
 
-Aerobraking Calculator for Kerbal Space Program.
+Re-entry timing calculator for Kerbal Space Program.
