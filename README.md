@@ -1,4 +1,4 @@
-ksp_reentry_timing
+ksp_atm_entry
 ============
 
-Re-entry timing calculator for Kerbal Space Program.
+Atmospheric entry timing calculator for Kerbal Space Program.
