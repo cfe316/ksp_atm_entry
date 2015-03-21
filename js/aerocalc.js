@@ -32,12 +32,26 @@ $(document).ready(function() {
 		sRemainder %= HOURS;
 		var myM = Math.floor( sRemainder / MINUTES);
 		sRemainder %= MINUTES;
-		var ts = sRemainder.toFixed(2) + "s"; //time string
+		var ts = sRemainder.toFixed(0) + "s"; //time string
 		if (myM > 0 || myH > 0 || myD > 0) { ts = myM + "m " + ts; }
 		if (           myH > 0 || myD > 0) { ts = myH + "h " + ts; }
 		if (                      myD > 0) { ts = myD + "d " + ts; }
 		
 		return ts;
+	};
+
+	// An extenstion of parseFloat to allow (optional) use of units.
+	// Assumes meters if no units are given.
+	this.parseUnitFloat = function(v) {
+		var v = v.toLowerCase();
+		var value = parseFloat(v);
+		if (v.indexOf("mm") !== -1) {
+			return value * 1000000;
+		} else if (v.indexOf("km") !== -1) {
+			return value * 1000;
+		} else {
+			return value;
+		}
 	};
 
 	this.sign = function(x) { return x > 0 ? 1 : x < 0 ? -1 : 0; }
@@ -79,36 +93,66 @@ $(document).ready(function() {
 	this.vec2 = function( x, y ) {
 		return [x, y];
 	};
+	//
+	// because IE still doesn't implement these
+	this.sinh = function(x) { var p = Math.exp(x); var n = 1/p; return (p-n)/2; };
+	this.arctanh = function(x) { return 0.5 * Math.log((1 + x)/(1 - x)); };
 
 	//--------------------------------------------------------------------
 
 	// Physics integrator
 	// Velocity-Verlet with Velocity-dependent forces
 	// Terminates once atmosphere is breached OR if impact occurs.
-	this.integrate_path = function( F, m, r0, v0, dt, Planet ) {
-		var t = 0,
-			r = r0,
-			v = v0;
+	this.integrate_path = function(cart, d, Planet, orbitDir) {
+		var t = 0, r = cart.r, v = cart.v;
+		var dt = 1;
+		var Fd = drag_force(d, 1, 1, Planet, orbitDir); // The 1 is because Area and Mass are not relevant to the drag model: only drag coefficient.
+		var Fg = gravity_force(1, Planet);
 
-		var a = function(rin, vin) { return vmult(1/m, F(rin, vin)); };
+		var adrag = function(rin, vin) { return Fd(rin, vin); }; // acceleration = force because mass is 1.
+		var agrav = function(rin) { return Fg(rin); };           // acceleration = force because mass is 1.
+		var a = function(rin, vin) { var ad = adrag(rin, vin); var ag = agrav(rin); return vsum(agrav(rin), adrag(rin, vin)); };
 
-		firstrun = true;
+		var curr_ad = -1, maxDrag = -1, hMaxDrag = -1, tMaxDrag = -1;
+
+		var CHUTE_SAFE_V = 250;
+		var chuteSafeVReached = false;
+		var hChuteSafe = -1, tChuteSafe = -1;
+
+		firststep = true;
 
 		var rold, vold, vest, a_t;
 
-		while (firstrun || (vnorm(r) <= Planet.Ratm && vnorm(r) >= Planet.Rmin)) {
+		//While in atmosphere and not landed
+		while (firststep || (vnorm(r) <= Planet.Ratm && vnorm(r) >= Planet.Rmin)) {
 			rold = r;
 			vold = v;
 			a_t = a(rold, vold);
 			r = vsum(rold, vmult(dt, vold), vmult(0.5*dt*dt, a_t));
 			vest = vsum(vold, vmult(0.5*dt, vsum(a_t,a(r,vsum(vold,vmult(dt,a_t))))));
 			v = vsum(vold, vmult(0.5*dt,vsum(a_t,a(r,vest))));
+
+			firststep = false;
+
+			curr_ad = vnorm(adrag(r, v));
+			if(curr_ad > maxDrag){
+				maxDrag = curr_ad;
+				hMaxDrag = vnorm(r);
+				tMaxDrag = t;
+			}
+
+			if(vnorm(v) < CHUTE_SAFE_V && chuteSafeVReached == false){
+				chuteSafeVReached = true;
+				hChuteSafe = vnorm(r);
+				tChuteSafe = t;
+			}
+
 			t = t + dt;
-			firstrun = false;
 		}
-		return {rf:r, vf:v, tf:t};
+		return {hMaxDrag: hMaxDrag, tMaxDrag: tMaxDrag, hChuteSafe: hChuteSafe, tChuteSafe: tChuteSafe, rf: r, vf: v, tf: t};
 	};
 
+	
 	// Get orbit parameters in the plane of orbit
 	// r and v are vectors
 	this.get_orbit_params = function( r, v, Planet ) {
@@ -118,16 +162,15 @@ $(document).ready(function() {
 		var a = -Planet.mu/(2*ep); // semi-major axis
 		var rpe = -a*(ec-1); // Periapsis distance
 		var rap = (1+ec)*a; // Apoapsis distance
+		var rn = vnorm(r);
+		var nu = Math.acos((a * (1 - ec*ec) - rn) / ( ec * rn) );
 
-		return {ep: ep, ec: ec, a: a, hmag: hmag, rpe: rpe, rap: rap};
+		return {ep: ep, ec: ec, a: a, hmag: hmag, rpe: rpe, rap: rap, nu: nu};
 	};
 
-	
-
-	// Return a function describing the total force while in atmosphere: 
-	// The drag force plus gravity.
+	// Return a function describing the drag force while in atmosphere: 
 	// The function definition depends on whether the user has indicated a prograde or retrograde orbit, or to ignore the planet's rotation.
-	this.in_atmo_force = function(d, m, A, Planet, orbitDir) {
+	this.drag_force = function(d, m, A, Planet, orbitDir) {
 		// Need to consider orbit direction!
 		var Kp = 1.2230948554874*0.008,
 			braking_functions = {
@@ -137,15 +180,18 @@ $(document).ready(function() {
 			},
 			v_surface = braking_functions[orbitDir]; // velocity relative to the surface
 		return function(r,v){
-			return vsum(
-					vmult(-0.5*Kp*Planet.P0*Math.exp((Planet.Rmin-vnorm(r))/Planet.H0) * vnorm(v_surface(r,v))*d*m*A, v_surface(r,v)), // drag
-					vmult(-m*Planet.mu/Math.pow(vnorm(r),3), r) // gravity
-				   );
+				return vmult(-0.5*Kp*Planet.P0*Math.exp((Planet.Rmin-vnorm(r))/Planet.H0) * vnorm(v_surface(r,v))*d*m*A, v_surface(r,v)); // drag
 			};
 	};
 
-	var final_orbit_params;
+	// Returns a function describing a (directional) gravity force as a function of vector r.
+	this.gravity_force = function(m, Planet) {
+		return function(r){
+			return vmult(-m*Planet.mu/Math.pow(vnorm(r),3), r);
+		};
+	};
 
+	/*
 	this.calc1 = function(dist, vx, vy, d, Planet, orbitDir) {
 		var r0 = [dist, 0],
 			v0 = [vx, vy],
@@ -212,31 +258,22 @@ $(document).ready(function() {
 		}
 		final_orbit_params = get_orbit_params(rvt.rf, rvt.vf, Planet);
 		return rap_out;
-	};
+	};*/
 
-	// Perform calculations for a given r (scalar), v (scalar), rpe (scalar)
-	this.calc_pe = function( r, v, rpe, d, Planet, orbitDir ) {
-		var vy = (rpe/r)*Math.sqrt(v*v+2*Planet.mu*(1/rpe-1/r));
-		var vx = Math.sqrt(v*v-vy*vy);
-		var ap = calc1(r, vx, vy, d, Planet, orbitDir);
-		return ap;
-	};
+	// assumes argument of periapsis is zero
+	this.cartesianFromKeplerian = function(kep, Planet) {
+		var nu = kep.nu;
+		var a = kep.a;
+		var ec = kep.ec;
+		var dist = a * (1 - ec*ec) / (1 + ec * Math.cos(nu));
+		var r = [ dist * Math.cos(nu), dist * Math.sin(nu) ];
+		var vmag = Math.sqrt(Planet.mu/( a * (1 - ec*ec)));
+		var v = [ - vmag * Math.sin(nu), vmag * ( ec + Math.cos(nu)) ];
 
-	// Allow (optional) use of units.
-	// Assumes meters if none are given.
-	this.parseUnitFloat = function(v) {
-		var v = v.toLowerCase();
-		var value = parseFloat(v);
-		if (v.indexOf("mm") !== -1) {
-			return value * 1000000;
-		} else if (v.indexOf("km") !== -1) {
-			return value * 1000;
-		} else {
-			return value;
-		}
-	};
+		return {r: r, v: v};
+	}
 
-	// r and v are scalars
+	// Compute orbital parameters from user input. r (radius mag.) and v (velocity mag.) are scalars. rpe is radius of periapsis.
 	this.keplerianFromRVP = function(r, v, rpe, Planet) {
 		var ep = v*v/2 - Planet.mu/r; // sp. orbital energy
 		var a = -Planet.mu/(2*ep); // semi-major axis
@@ -257,16 +294,8 @@ $(document).ready(function() {
 		return nu;
 	};
 
-	this.sinh = function(x) {
-		var p = Math.exp(x);
-		var n = 1/p;
-		return (p-n)/2;
-	};
-	
-	this.arctanh = function(x) {
-		return 0.5 * Math.log((1 + x)/(1 - x));
-	};
 
+	// get mean anomaly from eccentric anomaly
 	this.MeanAnomFromEccAnom = function(kep, EA) {
 		var MA;
 		if ( kep.ec < 1 ) {
@@ -290,7 +319,7 @@ $(document).ready(function() {
 		return EA;
 	};
 
-	// Composition of the two functinos.
+	// Composition of the two functions
 	this.MeanAnomFromTrueAnom = function(kep, nu){
 		return MeanAnomFromEccAnom(kep, EccAnomFromTrueAnom(kep, nu));
 	};
@@ -312,12 +341,20 @@ $(document).ready(function() {
 		return timeToAtm;
 	};
 
+	this.apoCircDeltaV = function(kep, Planet) {
+		var rap = kep.rap; // radius of apoapsis
+		var a = kep.a;
+		var vap = Math.sqrt( Planet.mu * ( 2 / rap - 1 / a ));
+		var vcirc = Math.sqrt(Planet.mu / rap);
+		return vcirc - vap;
+	}
+
 	// Main function
 	// r is scalar (distance from centre of planet)
 	// v is scalar (magnitude of orbital velocity)
 	// rpe is scalar (periapsis distance)
 	// We search for a constant-velocity solution to this problem.
-	this.solve = function( r, v, rpe, d, Planet, orbitDir ) {
+	this.computeTrajectory = function( r, v, rpe, d, Planet, orbitDir ) {
 
 		if (rpe > Planet.Ratm) {
 			$('#inputAlt,#inputVel,#inputPE,#outputType').parent().parent().addClass('error');
@@ -336,21 +373,56 @@ $(document).ready(function() {
 		var timeToAtmString = timeString(timeToAtm);
 		$('#outputAtmEntryTime').val(timeToAtmString);
 
-		/*
-		if(impacts) {
-			$('#outputType').val("Landing");
-			$('#outputMaxQTime').val((0).toFixed(2));
-			$('#outputMaxQAlt').val((0).toFixed(2));
-			$('#outputChuteTime').val((0).toFixed(2));
-			$('#outputChuteAlt').val((0).toFixed(2));
-			$('#output0mTime').val((0).toFixed(2));		
-		} else {
-			$('#outputType').val("Aerobraking");
-			$('#outputAtmExitTime').val((0).toFixed(2));
-			$('#outputApoapsis').val((0).toFixed(2));
-		}
-		*/
+		var kep = keplerianFromRVP(r, v, rpe, Planet);
+		kep.nu = nuOfAtmosphereEntry(kep, Planet);
+		atmEntryCoords = cartesianFromKeplerian(kep, Planet);
+		eventHistory = integrate_path(atmEntryCoords, d, Planet, orbitDir);
 
+		var rf = eventHistory.rf;
+		if( vnorm(rf) <= Planet.Rmin) {
+			var tLand = timeString(timeToAtm + eventHistory.tf);
+			var tMaxDrag = timeString(timeToAtm + eventHistory.tMaxDrag);
+			var hMaxDrag = eventHistory.hMaxDrag - Planet.Rmin;
+			var tChuteSafe = timeString(timeToAtm + eventHistory.tChuteSafe); 
+			var hChuteSafe = eventHistory.hChuteSafe - Planet.Rmin;
+
+			$('#outputType').val("Landing");
+			$('#outputMaxQTime').val(tMaxDrag);
+			$('#outputMaxQAlt').val((hMaxDrag).toFixed(0) + " m");
+			$('#outputChuteTime').val(tChuteSafe);
+			$('#outputChuteAlt').val((hChuteSafe).toFixed(0) + " m");
+			$('#output0mTime').val(tLand);
+		} else { // The craft does not land ... it is only aerobraking.
+			var tEsc = eventHistory.tf + timeToAtm;
+			var tEscString = timeString(tEsc);
+
+			// get info on final keplerian orbit
+			kepFinal = get_orbit_params(rf, eventHistory.vf, Planet);
+
+
+			// If after aerobraking the craft is in an elliptical orbit
+			if ( kepFinal.ec < 1 ) {
+				$('#outputType').val("Aerobraking - Captured");
+				$('#outputApoapsis').val(((kepFinal.rap - Planet.Rmin)/1000).toFixed(0) + " km");
+				$('#outputPeriapsis').val(((kepFinal.rpe - Planet.Rmin)/1000).toFixed(0) + " km");
+
+				var reachApoTime = timeBetweenTrueAnomalies(kepFinal, kepFinal.nu, 3.14159, Planet) + tEsc;
+				var apoCircDV = apoCircDeltaV(kepFinal, Planet);
+				$('#outputApoTime').val(timeString(reachApoTime));
+				$('#outputApoV').val((Math.sqrt(Planet.mu * ( 2 / kepFinal.rap - 1 / kepFinal.a))).toFixed(1) + " m/s");
+				$('#outputApoCircDV').val( (apoCircDV).toFixed(1) +" m/s");
+			} else {
+				$('#outputType').val("Aerobraking - Escaping");
+				$('#outputApoapsis').val("n/a");
+				$('#outputPeriapsis').val("n/a");
+				$('#outputApoTime').val("n/a");
+				$('#outputApoV').val("n/a");
+				$('#outputApoCircDV').val("n/a");
+			}
+
+			$('#outputAtmExitTime').val(tEscString);
+			$('#outputEccentricity').val((kepFinal.ec).toFixed(3));
+		}
 	};
 	var that = this;
 
@@ -366,6 +438,11 @@ $(document).ready(function() {
 		$('#output0mTime').val("");
 		$('#outputAtmExitTime').val("");
 		$('#outputApoapsis').val("");
+		$('#outputPeriapsis').val("");
+		$('#outputEccentricity').val("");
+		$('#outputApoTime').val("");
+		$('#outputApoV').val("");
+		$('#outputApoCircDV').val("");
 
 		var Planet = that.Planets[$('#inputBody').val()];
 		var r = parseUnitFloat($('#inputAlt').val(), 10)+Planet.Rmin;	// input altitude
@@ -374,7 +451,7 @@ $(document).ready(function() {
 		var orbitDir = $('input[name=inputDir]:radio:checked').val();	// orbit direction (pro/retrograde)
 		var d = parseFloat($('#inputD').val(), 10);			// Drag coefficient
 
-		solve(r,v,pe,d,Planet,orbitDir);
+		computeTrajectory(r,v,pe,d,Planet,orbitDir);
 	});
 	return this;
 })();
