@@ -62,6 +62,8 @@ $(document).ready(function() {
 		return [x, y];
 	};
 
+	//--------------------------------------------------------------------
+
 	// Physics integrator
 	// Velocity-Verlet with Velocity-dependent forces
 	// Terminates once atmosphere is breached OR if impact occurs.
@@ -90,26 +92,19 @@ $(document).ready(function() {
 	};
 
 	// Get orbit parameters in the plane of orbit
+	// r and v are vectors
 	this.get_orbit_params = function( r, v, Planet ) {
-		// sp. orbital energy
-		var ep = vdot(v,v)/2 - Planet.mu/vnorm(r);
-		// sp. angular momentum
-		var hmag = vcross2d(r,v);
-
-		// eccentricity
-		var ec = Math.sqrt(1+2*ep*hmag*hmag/Planet.mu/Planet.mu);
-
-		// semi-major axis
-		var a = -Planet.mu/(2*ep);
-
-		// Periapsis distance
-		var rpe = -a*(ec-1);
-
-		// Apoapsis distance
-		var rap = (1+ec)*a;
+		var ep = vdot(v,v)/2 - Planet.mu/vnorm(r); // sp. orbital energy
+		var hmag = vcross2d(r,v); // sp. angular momentum
+		var ec = Math.sqrt(1+2*ep*hmag*hmag/Planet.mu/Planet.mu); // eccentricity
+		var a = -Planet.mu/(2*ep); // semi-major axis
+		var rpe = -a*(ec-1); // Periapsis distance
+		var rap = (1+ec)*a; // Apoapsis distance
 
 		return {ep: ep, ec: ec, a: a, hmag: hmag, rpe: rpe, rap: rap};
 	};
+
+	
 
 	// Return a function describing the total force while in atmosphere: 
 	// The drag force plus gravity.
@@ -223,25 +218,105 @@ $(document).ready(function() {
 		}
 	};
 
+	// r and v are scalars
+	this.keplerianFromRVP = function(r, v, rpe, Planet) {
+		var ep = v*v/2 - Planet.mu/r; // sp. orbital energy
+		var a = -Planet.mu/(2*ep); // semi-major axis
+		var ec = 1 - rpe/a; //eccentricity
+		var rap = (1+ec)*a; // Apoapsis distance
+		// current true anomaly nu (assuming the rocket is on the way down).
+		var nu = - Math.acos((a * (1 - ec*ec) - r) / ( ec * r) );
+
+		return {ep: ep, ec: ec, a: a, rpe: rpe, rap: rap, nu: nu};
+	};
+
+	this.nuOfAtmosphereEntry = function(kep, Planet) {
+		//Assuming the rocket is on the way down...
+		var Ratm = Planet.Ratm;
+		var a = kep.a;
+		var ec = kep.ec;
+		var nu = - Math.acos((a * (1 - ec*ec) - Ratm) / ( ec * Ratm) );
+		return nu;
+	};
+
+	this.sinh = function(x) {
+		var p = Math.exp(x);
+		var n = 1/p;
+		return (p-n)/2;
+	};
+	
+	this.arctanh = function(x) {
+		return 0.5 * Math.log((1 + x)/(1 - x));
+	};
+
+	this.MeanAnomFromEccAnom = function(kep, EA) {
+		var MA;
+		if ( kep.ec < 1 ) {
+			MA = EA - kep.ec * Math.sin(EA);
+		} else {
+			MA = kep.ec * sinh(EA) - EA; 
+		}
+		return MA;
+	};
+
+	// For elliptic cases from wikipedia.org/wiki/Eccentric_anomaly
+	// For hyperbolic case from http://mmae.iit.edu/~mpeet/Classes/MMAE441/Spacecraft/441Lecture17.pdf
+	this.EccAnomFromTrueAnom = function(kep, nu) {
+		var EA;
+		var ec = kep.ec;
+		if ( kep.ec < 1 ) {
+			EA = 2 * Math.atan(Math.tan(nu/2) * Math.sqrt((1-ec)/(1+ec)));
+		} else {
+			EA = arctanh(Math.sqrt((ec-1)/(ec+1)) * Math.tan(nu/2.0));
+		}
+		return EA;
+	};
+
+	// Composition of the two functinos.
+	this.MeanAnomFromTrueAnom = function(kep, nu){
+		return MeanAnomFromEccAnom(kep, EccAnomFromTrueAnom(kep, nu));
+	};
+
+	this.timeBetweenTrueAnomalies = function(kep, nu1, nu2, Planet) {
+		var MA1 = MeanAnomFromTrueAnom(kep, nu1); // get Mean anomalies of each point
+		var MA2 = MeanAnomFromTrueAnom(kep, nu2); 
+		var mu = Planet.mu;
+		var a = Math.abs(kep.a);
+		var perFac = Math.sqrt(Math.pow(a,3) / mu); // sqrt(a^3/mu) is like a period without 2 pi.
+		return perFac * Math.abs(MA1 - MA2);
+	};
+
+	this.timeToAtmEntry = function(r, v, rpe, Planet) {
+		var kep = keplerianFromRVP(r, v, rpe, Planet);
+		var nu1 = kep.nu;
+		var nu2 = nuOfAtmosphereEntry(kep, Planet);
+		var timeToAtm = timeBetweenTrueAnomalies(kep, nu1, nu2, Planet);
+		return timeToAtm;
+	};
+
 	// Main function
 	// r is scalar (distance from centre of planet)
 	// v is scalar (magnitude of orbital velocity)
 	// rpe is scalar (periapsis distance)
 	// We search for a constant-velocity solution to this problem.
-	this.solve = function( r, v, rpe, targ, d, Planet, orbitDir ) {
-		var vy = (rpe/r)*Math.sqrt(v*v+2*Planet.mu*(1/rpe-1/r));
-		var vx = Math.sqrt(v*v-vy*vy);
+	this.solve = function( r, v, rpe, d, Planet, orbitDir ) {
 
 		if (rpe > Planet.Ratm) {
 			$('#inputAlt,#inputVel,#inputPE,#outputType').parent().parent().addClass('error');
 			$('#outputType').val('No atmosphere entry!');
 			return;
 		}
-		// Future work:
-				
-		impacts = false;
+		
+		var timeToAtm = timeToAtmEntry(r, v, rpe, Planet);
 
-		$('#outputAtmEntryTime').val((0).toFixed(2));
+		if (isNaN(timeToAtm)) {
+			$('#inputAlt,#inputVel,#inputPE,#outputType').parent().parent().addClass('error');
+			$('#outputType').val('Error: Inconsistent Input');
+			return;
+		}
+
+		impacts = true;
+		$('#outputAtmEntryTime').val((timeToAtm).toFixed(2));
 
 		if(impacts) {
 			$('#outputType').val("Landing");
@@ -272,15 +347,14 @@ $(document).ready(function() {
 		$('#outputAtmExitTime').val("");
 		$('#outputApoapsis').val("");
 
-		var Planet = that.Planets[$('#inputBody').val()],
-			r = parseUnitFloat($('#inputAlt').val(), 10)+Planet.Rmin,	// input altitude
-			v = parseFloat($('#inputVel').val(), 10),					// input velocity
-			pe = parseUnitFloat($('#inputPE').val(), 10)+Planet.Rmin,	// input periapsis
-			orbitDir = $('input[name=inputDir]:radio:checked').val(),	// orbit direction (pro/retrograde)
-			d = parseFloat($('#inputD').val(), 10),						// Drag coefficient
-			target = 1000000+Planet.Rmin; 								// target apoapsis altitude in meters
+		var Planet = that.Planets[$('#inputBody').val()];
+		var r = parseUnitFloat($('#inputAlt').val(), 10)+Planet.Rmin;	// input altitude
+		var v = parseFloat($('#inputVel').val(), 10);			// input velocity
+		var pe = parseUnitFloat($('#inputPE').val(), 10)+Planet.Rmin;	// input periapsis
+		var orbitDir = $('input[name=inputDir]:radio:checked').val();	// orbit direction (pro/retrograde)
+		var d = parseFloat($('#inputD').val(), 10);			// Drag coefficient
 
-		solve(r,v,pe,target,d,Planet,orbitDir);
+		solve(r,v,pe,d,Planet,orbitDir);
 	});
 	return this;
 })();
