@@ -22,6 +22,24 @@ $(document).ready(function() {
 		Laythe: mkPlanet(500000,55262.042,3723645.8,1.962e12,4000,0.8,52980.879)
 	};
 
+	this.timeString = function(s) {
+		var MINUTES = 60;
+		var HOURS = 60 * MINUTES;
+		var DAYS = 6 * HOURS;
+		var myD = Math.floor( s / DAYS );
+		var sRemainder = s % DAYS;
+		var myH = Math.floor( sRemainder / HOURS);
+		sRemainder %= HOURS;
+		var myM = Math.floor( sRemainder / MINUTES);
+		sRemainder %= MINUTES;
+		var ts = sRemainder.toFixed(2) + "s"; //time string
+		if (myM > 0 || myH > 0 || myD > 0) { ts = myM + "m " + ts; }
+		if (           myH > 0 || myD > 0) { ts = myH + "h " + ts; }
+		if (                      myD > 0) { ts = myD + "d " + ts; }
+		
+		return ts;
+	};
+
 	this.sign = function(x) { return x > 0 ? 1 : x < 0 ? -1 : 0; }
 
 	// Simple 2D vector math implementation
@@ -315,8 +333,8 @@ $(document).ready(function() {
 			return;
 		}
 
-		impacts = true;
-		$('#outputAtmEntryTime').val((timeToAtm).toFixed(2));
+		var timeToAtmString = timeString(timeToAtm);
+		$('#outputAtmEntryTime').val(timeToAtmString);
 
 		/*
 		if(impacts) {
