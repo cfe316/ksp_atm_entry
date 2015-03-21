@@ -318,6 +318,7 @@ $(document).ready(function() {
 		impacts = true;
 		$('#outputAtmEntryTime').val((timeToAtm).toFixed(2));
 
+		/*
 		if(impacts) {
 			$('#outputType').val("Landing");
 			$('#outputMaxQTime').val((0).toFixed(2));
@@ -330,6 +331,7 @@ $(document).ready(function() {
 			$('#outputAtmExitTime').val((0).toFixed(2));
 			$('#outputApoapsis').val((0).toFixed(2));
 		}
+		*/
 
 	};
 	var that = this;
