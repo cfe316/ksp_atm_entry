@@ -21,10 +21,20 @@
 		<h1 class="text-center">KSP Atmospheric Entry Timing Calculator</h1>
 		<div class="row">
 			<div class="span8">
-			<p class="lead">Enter your <strong>current altitude</strong>, <strong>orbital velocity</strong>, and <strong>periapsis distance</strong> into the calculator at right. The calculator will give the time in (h, m, s) till atmospheric entry, Max Q, and 250 m/s.</p>
+			<p class="lead">Enter your <strong>current altitude</strong>, <strong>orbital velocity</strong>, and <strong>periapsis distance</strong> into the calculator at right. The calculator will give the time in (d, h, m, s) till atmospheric entry, max drag, v = 250 m/s, and landing, or atmospheric exit (where applicable).</p>
+			<p>
+			The calculator assumes that your ship is headed down toward periapsis. To use this calculator when your ship is headed up toward apoapsis, add twice the 'time to apoapsis' from the game to the results.
+			</p>
 			<h2>How to Use the Solution</h2>
 			<p>
-			If your ship is controlled via a computer, tell it to retract fragile solar panels, antennas, etc before atmospheric entry, and to deploy parachutes after slowing ~250 m/s.
+			This calculator is primarily meant for use with mods like RemoteTech where craft cannot be controlled instantly; rather, burns and actions must be pre-programmed.
+			</p>
+
+			<p>
+			Program the ship it to retract fragile solar panels, antennas, etc before atmospheric entry, and to deploy parachutes after slowing to ~250 m/s.
+			</p>
+			<p>
+			If your goal is an aerocapture, program the ship to circularize its orbit at the appropriate time.
 			</p>
 			<h2>Suggestions for Best Results</h2>
 			<p>
@@ -35,13 +45,10 @@
 			</p>
 			<h2>How it Works</h2>
 			<p>
-			RK4 (I hope!)
-			</p>
-			<p>
 			Given a current altitude, orbital velocity, and periapsis, we have enough information to resolve the orbit of the ship (there are some ambiguities in orientation, but they do not matter for this problem).
 			The point of intersection of this orbit with the atmosphere and the velocity of the ship at that point are calculated. Using these data, the trajectory in the atmosphere is determined using numerical methods.
+			If the ship reaches the ground, the time and altitude of maximum drag and of reaching 250 m/s will be given, and the time of landing/impact (assuming no parachutes) will be given.
 			If the ship escapes, the velocity at which the ship escapes the atmosphere is found, and used to compute the new orbit.
-			If the ship reaches the ground ... 
 			</p>
 			<h2>Q&amp;A</h2>
 			<dl>
@@ -203,7 +210,7 @@
 							</div>
 					</div>
 					<div class="control-group">
-							<label class="control-label" for="outputApoCircDV">Apoapsis circularization &Delta;V</label>
+							<label class="control-label" for="outputApoCircDV">Post-aerobrake apoapsis circularization &Delta;V</label>
 							<div class="controls">
 								<input type="text" id="outputApoCircDV" class="uneditable-input" disabled>
 							</div>
