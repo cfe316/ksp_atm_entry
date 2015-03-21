@@ -62,32 +62,6 @@ $(document).ready(function() {
 		return [x, y];
 	};
 
-	// Method of bisection for root finding
-	this.fzero = function( f, Ain, Bin, Tol, Nmax ) {
-		Tol = typeof Tol !== 'undefined' ? Tol : 1e-2;	// This is tiny relative to the values involved!
-		Nmax = typeof Nmax !== 'undefined' ? Nmax : 1000;
-		var N = 1,
-			a = Ain,
-			b = Bin,
-			c,
-			fc,
-			fa = f(a);
-
-		while (N < Nmax) {
-			c = (a+b)/2;
-			fc = f(c);	// Don't want to re-evaluate this -- it's expensive!
-			if (fc == 0 || (b-a)/2<Tol) return c;
-			N = N + 1;
-			if (sign(fc) == sign(fa)) {
-				a = c;
-				fa = fc;
-			} else {
-				b = c;
-			}
-		}
-		console.log('Bisection failed!');
-	};
-
 	// Physics integrator
 	// Velocity-Verlet with Velocity-dependent forces
 	// Terminates once atmosphere is breached OR if impact occurs.
@@ -115,8 +89,6 @@ $(document).ready(function() {
 		return {rf:r, vf:v, tf:t};
 	};
 
-	//console.log(integrate_path(my_F, 1, [0, 10], [0, 0], 0.0001, {Rmin:0, Ratm:10000}));
-
 	// Get orbit parameters in the plane of orbit
 	this.get_orbit_params = function( r, v, Planet ) {
 		// sp. orbital energy
@@ -130,16 +102,18 @@ $(document).ready(function() {
 		// semi-major axis
 		var a = -Planet.mu/(2*ep);
 
-		// Periapse distance
+		// Periapsis distance
 		var rpe = -a*(ec-1);
 
-		// Apoapse distance
+		// Apoapsis distance
 		var rap = (1+ec)*a;
 
 		return {ep: ep, ec: ec, a: a, hmag: hmag, rpe: rpe, rap: rap};
 	};
 
-	// Net force in atmosphere
+	// Return a function describing the total force while in atmosphere: 
+	// The drag force plus gravity.
+	// The function definition depends on whether the user has indicated a prograde or retrograde orbit, or to ignore the planet's rotation.
 	this.in_atmo_force = function(d, m, A, Planet, orbitDir) {
 		// Need to consider orbit direction!
 		var Kp = 1.2230948554874*0.008,
@@ -148,8 +122,13 @@ $(document).ready(function() {
 				"retrograde": function(r,v) {return vdiff(v, vmult(1,[-2.0*Math.PI/Planet.Trot*r[1], 2.0*Math.PI/Planet.Trot*r[0]]))},
 				"ignore": function(r,v) {return v;}
 			},
-			v_surface = braking_functions[orbitDir];
-		return function(r,v) {return vsum(vmult(-0.5*Kp*Planet.P0*Math.exp((Planet.Rmin-vnorm(r))/Planet.H0)*vnorm(v_surface(r,v))*d*m*A, v_surface(r,v)), vmult(-m*Planet.mu/Math.pow(vnorm(r),3), r));};
+			v_surface = braking_functions[orbitDir]; // velocity relative to the surface
+		return function(r,v){
+			return vsum(
+					vmult(-0.5*Kp*Planet.P0*Math.exp((Planet.Rmin-vnorm(r))/Planet.H0) * vnorm(v_surface(r,v))*d*m*A, v_surface(r,v)), // drag
+					vmult(-m*Planet.mu/Math.pow(vnorm(r),3), r) // gravity
+				   );
+			};
 	};
 
 	var final_orbit_params;
@@ -165,18 +144,7 @@ $(document).ready(function() {
 
 		var p1 = get_orbit_params( r0, v0, Planet );
 
-		// Short-circuit tests
-		if (p1.rpe < Planet.Rmin) {
-			// Initial suborbital
-			rap_out = Planet.Rmin;	// Technically right!
-			return rap_out;
-		}
-		else if (p1.ep >= 0 && p1.rpe > Planet.Ratm) {
-			// Initial hyperbolic (or parabolic) escape
-			rap_out = Planet.SOI+1;	// Still technically right . . .
-			return rap_out;
-		}
-		else if (p1.ep < 0 && p1.rpe > Planet.Ratm) {
+		if (p1.rpe > Planet.Ratm) {
 			if (p1.rap < Planet.SOI) {
 				// Initial stable, no atmosphere entry
 				rap_out = p1.rap;
@@ -203,12 +171,12 @@ $(document).ready(function() {
 		// The sines and cosines here have been chosen to give the velocity as [vr, vtheta]
 		var vcontact = vmult(vcontact_mag, [-Math.cos(theta_1+theta_contact), -Math.sin(theta_1+theta_contact)]);
 
+		// F is a function.
 		var F = in_atmo_force( d, m, A, Planet, orbitDir );
 
 		// Integrate path in atmosphere.
 		var rvt = integrate_path(F, m, rcontact, vcontact, dt, Planet);
-		//console.log(rvt.rf);
-		//console.log('Aero-encounter!');
+
 		if (vnorm(rvt.rf) >= Planet.Rmin) {// If not, we've impacted!
 			var p2 = get_orbit_params(rvt.rf, rvt.vf, Planet);
 			if (p2.ep < 0) {
@@ -242,6 +210,7 @@ $(document).ready(function() {
 	};
 
 	// Allow (optional) use of units.
+	// Assumes meters if none are given.
 	this.parseUnitFloat = function(v) {
 		var v = v.toLowerCase();
 		var value = parseFloat(v);
@@ -257,47 +226,59 @@ $(document).ready(function() {
 	// Main function
 	// r is scalar (distance from centre of planet)
 	// v is scalar (magnitude of orbital velocity)
-	// rpe is scalar (periapse distance)
+	// rpe is scalar (periapsis distance)
 	// We search for a constant-velocity solution to this problem.
 	this.solve = function( r, v, rpe, targ, d, Planet, orbitDir ) {
 		var vy = (rpe/r)*Math.sqrt(v*v+2*Planet.mu*(1/rpe-1/r));
 		var vx = Math.sqrt(v*v-vy*vy);
 
-		var c_ap = function(pe) {return calc_pe(r,v,pe,d,Planet,orbitDir)-targ};
-
-		var new_pe = fzero(c_ap,Planet.Rmin, Planet.Ratm);
-
-		var vy1 = (new_pe/r)*Math.sqrt(v*v+2*Planet.mu*(1/new_pe-1/r));
-		var vx1 = Math.sqrt(v*v-vy1*vy1);
-
-		var dv = vnorm(vdiff([vx1, vy1], [vx, vy]));
-		var dvtheta = Math.atan2(vy1-vy,vx1-vx);
-
-		if (isNaN(dv) || isNaN(dvtheta) || isNaN(vnorm([vx1, vy1]))) {
-			$('#inputAlt,#inputVel,#inputPE,#inputAP').parent().parent().addClass('error');
-			$('#outputPE,#outputDV,#outputAng,#outputVel2,#outputCircDV').val('No Solution!');
+		if (rpe > Planet.Ratm) {
+			$('#inputAlt,#inputVel,#inputPE,#outputType').parent().parent().addClass('error');
+			$('#outputType').val('No atmosphere entry!');
 			return;
 		}
+		// Future work:
+				
+		impacts = false;
 
-		$('#outputPE').val((new_pe-Planet.Rmin).toFixed(2));
-		$('#outputDV').val(dv.toFixed(2));
-		$('#outputAng').val((dvtheta*180/Math.PI).toFixed(2));
-		$('#outputVel2').val((vnorm([vx1, vy1])).toFixed(2));
-		$('#outputCircDV').val((Math.sqrt(Planet.mu/final_orbit_params.rap)-Math.abs(final_orbit_params.hmag / final_orbit_params.rap)).toFixed(2));
+		$('#outputAtmEntryTime').val((0).toFixed(2));
+
+		if(impacts) {
+			$('#outputType').val("Landing");
+			$('#outputMaxQTime').val((0).toFixed(2));
+			$('#outputMaxQAlt').val((0).toFixed(2));
+			$('#outputChuteTime').val((0).toFixed(2));
+			$('#outputChuteAlt').val((0).toFixed(2));
+			$('#output0mTime').val((0).toFixed(2));		
+		} else {
+			$('#outputType').val("Aerobraking");
+			$('#outputAtmExitTime').val((0).toFixed(2));
+			$('#outputApoapsis').val((0).toFixed(2));
+		}
+
 	};
 	var that = this;
 
 	$('#go').click(function() {
 
-		$('#inputAlt,#inputVel,#inputPE,#inputAP').parent().parent().removeClass('error');
+		$('#inputAlt,#inputVel,#inputPE,#outputType').parent().parent().removeClass('error');
+		$('#outputAtmEntryTime').val("");
+		$('#outputType').val("");
+		$('#outputMaxQTime').val("");
+		$('#outputMaxQAlt').val("");
+		$('#outputChuteTime').val("");
+		$('#outputChuteAlt').val("");
+		$('#output0mTime').val("");
+		$('#outputAtmExitTime').val("");
+		$('#outputApoapsis').val("");
 
 		var Planet = that.Planets[$('#inputBody').val()],
-			r = parseUnitFloat($('#inputAlt').val(), 10)+Planet.Rmin,
-			v = parseFloat($('#inputVel').val(), 10),
-			pe = parseUnitFloat($('#inputPE').val(), 10)+Planet.Rmin,
-			orbitDir = $('input[name=inputDir]:radio:checked').val(),
-			d = parseFloat($('#inputD').val(), 10),
-			target = parseUnitFloat($('#inputAP').val(), 10)+Planet.Rmin;
+			r = parseUnitFloat($('#inputAlt').val(), 10)+Planet.Rmin,	// input altitude
+			v = parseFloat($('#inputVel').val(), 10),					// input velocity
+			pe = parseUnitFloat($('#inputPE').val(), 10)+Planet.Rmin,	// input periapsis
+			orbitDir = $('input[name=inputDir]:radio:checked').val(),	// orbit direction (pro/retrograde)
+			d = parseFloat($('#inputD').val(), 10),						// Drag coefficient
+			target = 1000000+Planet.Rmin; 								// target apoapsis altitude in meters
 
 		solve(r,v,pe,target,d,Planet,orbitDir);
 	});

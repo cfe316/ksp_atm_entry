@@ -46,7 +46,11 @@
 			<h2>Q&amp;A</h2>
 			<dl>
 			<dt>Why isn't the mass of the ship needed?</dt>
-			<dd>This is an artifact of the (unrealistic) drag model in KSP at the moment. Both the gravitational and drag forces are proportional to mass. As a result, the acceleration (and therefore the path of the ship, neglecting lift, in the atmosphere) is <strong>independent</strong> of mass. <em>Note: In the real world, aerodynamic drag is not proportional to mass.</em></dd>
+			<dd>
+			This is an artifact of the (unrealistic) drag model in KSP at the moment.
+			Both the gravitational and drag forces are proportional to mass.
+			As a result, the acceleration (and therefore the path of the ship, neglecting lift, in the atmosphere) is <strong>independent</strong> of mass.
+			<em>Note: In the real world, aerodynamic drag is not proportional to mass.</em></dd>
 			<dt>When can I use 0.2 as the drag coefficient?</dt>
 			<dd>For most ships, the drag coefficient is very close to 0.2. This is because most parts in the game have a drag coefficient of 0.2. Those that do not (for instance, docking ports), tend to have a small mass and therefore do not significantly alter the drag coefficient. However, if using modded parts (or if your ship's mass is largely made up of docking ports), you'll want to calculate the drag coefficient for your ship. This can be done following the methods <a href="http://wiki.kerbalspaceprogram.com/wiki/Atmosphere">here.</a></dd>
 			</dl>
@@ -103,14 +107,7 @@
 									Ignore (Less Accurate)
 								</label>
 							</div>
-						</div>
-					<legend>Target Orbit Details</legend>
-					<div class="control-group">
-							<label class="control-label" for="inputAP">Desired Apoapsis</label>
-							<div class="controls">
-								<input type="text" id="inputAP" value="1000 km">
-							</div>
-					</div>
+						</div>					
 					<legend>Ship Details (Advanced)</legend>
 					<div class="control-group">
 							<label class="control-label" for="inputD">Drag Coefficient</label>
@@ -126,34 +123,59 @@
 					</div>
 					<legend>Results</legend>
 					<div class="control-group">
-							<label class="control-label" for="outputPE">Aerobraking Periapsis (m)</label>
+							<label class="control-label" for="outputAtmEntryTime">Time to Atm Entry</label>
 							<div class="controls">
-								<input type="text" id="outputPE" class="uneditable-input" disabled>
+								<input type="text" id="outputAtmEntryTime" class="uneditable-input" disabled>
 							</div>
 					</div>
 					<div class="control-group">
-							<label class="control-label" for="outputDV">Required delta-V (m/s)</label>
+							<label class="control-label" for="outputType">Solution type</label>
 							<div class="controls">
-								<input type="text" id="outputDV" class="uneditable-input" disabled>
+								<input type="text" id="outputType" class="uneditable-input" disabled>
+							</div>
+					</div>
+					<legend>Landing results</legend>
+					<div class="control-group">
+							<label class="control-label" for="outputMaxQTime">Time to Max Q</label>
+							<div class="controls">
+								<input type="text" id="outputMaxQTime" class="uneditable-input" disabled>
 							</div>
 					</div>
 					<div class="control-group">
-							<label class="control-label" for="outputAng">Thrust Angle (degrees)</label>
+							<label class="control-label" for="outputMaxQAlt">Altitude at Max Q</label>
 							<div class="controls">
-								<input type="text" id="outputAng" class="uneditable-input" disabled>
+								<input type="text" id="outputMaxQAlt" class="uneditable-input" disabled>
 							</div>
 					</div>
 					<div class="control-group">
-							<label class="control-label" for="outputVel2">Orbital Velocity after Manoeuver (m/s)</label>
+							<label class="control-label" for="outputChuteTime">Time to 250 m/s</label>
 							<div class="controls">
-								<input type="text" id="outputVel2" class="uneditable-input" disabled>
+								<input type="text" id="outputChuteTime" class="uneditable-input" disabled>
 							</div>
 					</div>
-					<p class="text-info">New feature! Delta-V required to circularize target orbit.</p>
 					<div class="control-group">
-							<label class="control-label" for="outputCircDV">Post-Aerobrake Circularization delta-V (m/s)</label>
+							<label class="control-label" for="outputChuteAlt">Altitude at 250 m/s</label>
 							<div class="controls">
-								<input type="text" id="outputCircDV" class="uneditable-input" disabled>
+								<input type="text" id="outputChuteAlt" class="uneditable-input" disabled>
+							</div>
+					</div>
+					<div class="control-group">
+							<label class="control-label" for="output0mTime">Time to 0m (without chutes)</label>
+							<div class="controls">
+								<input type="text" id="output0mTime" class="uneditable-input" disabled>
+							</div>
+					</div>
+					<legend>Aerobrake results</legend>
+					<div class="control-group">
+							<label class="control-label" for="outputAtmExitTime">Time to Atm Exit</label>
+							<div class="controls">
+								<input type="text" id="outputAtmExitTime" class="uneditable-input" disabled>
+							</div>
+					</div>
+					<div class="control-group">
+							<label class="control-label" for="outputApoapsis">Apoapsis after Aerobrake</label>
+							<div class="controls">
+								<input type="text" id="outputApoapsis" class="uneditable-input" disabled>
 							</div>
 					</div>
 					</fieldset>
