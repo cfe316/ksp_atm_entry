@@ -105,7 +105,7 @@ $(document).ready(function() {
 	// Terminates once atmosphere is breached OR if impact occurs.
 	this.integrate_path = function(cart, d, Planet, orbitDir) {
 		var t = 0, r = cart.r, v = cart.v;
-		var dt = 1;
+		var dt = 0.1;
 		var Fd = drag_force(d, 1, 1, Planet, orbitDir); // The 1 is because Area and Mass are not relevant to the drag model: only drag coefficient.
 		var Fg = gravity_force(1, Planet);
 
