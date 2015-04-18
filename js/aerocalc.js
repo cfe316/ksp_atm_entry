@@ -14,6 +14,7 @@ $(document).ready(function() {
 		};
 	};
 
+	// A list of all the planets with atmospheres.
 	this.Planets = {
 		Eve: mkPlanet(700000,96708.574,85109365,8.1717302e12,7000,5,80500),
 		Kerbin: mkPlanet(600000,69077.553,84159286,3.5316e12,5000,1,21600),
@@ -105,7 +106,8 @@ $(document).ready(function() {
 	// Terminates once atmosphere is breached OR if impact occurs.
 	this.integrate_path = function(cart, d, Planet, orbitDir) {
 		var t = 0, r = cart.r, v = cart.v;
-		var dt = 0.1;
+		var dt = .1;
+
 		var Fd = drag_force(d, 1, 1, Planet, orbitDir); // The 1 is because Area and Mass are not relevant to the drag model: only drag coefficient.
 		var Fg = gravity_force(1, Planet);
 
@@ -191,76 +193,8 @@ $(document).ready(function() {
 		};
 	};
 
-	/*
-	this.calc1 = function(dist, vx, vy, d, Planet, orbitDir) {
-		var r0 = [dist, 0],
-			v0 = [vx, vy],
-			dt = 1,
-			m = 1,
-			A = 1;
-
-		var rap_out = 0;
-
-		var p1 = get_orbit_params( r0, v0, Planet );
-
-		if (p1.rpe > Planet.Ratm) {
-			if (p1.rap < Planet.SOI) {
-				// Initial stable, no atmosphere entry
-				rap_out = p1.rap;
-				return rap_out;
-			} else {
-				// Initial ep<0 SOI escape
-				rap_out = Planet.SOI+1;
-				return rap_out;
-			}
-		}
-		// If we've made it this far, we're hitting the atmosphere without guarantee of impact!
-		//console.log(Planet);
-		// Angle from periapsis at which we contact the atmosphere.
-		var theta_contact = Math.acos((1/p1.ec)*(p1.a*(1-p1.ec*p1.ec)/Planet.Ratm-1));
-
-		// Magnitude of velocity when contacting atmosphere
-		var vcontact_mag = Math.sqrt(2*(p1.ep+Planet.mu/Planet.Ratm));
-
-		// Use conservation of angular momentum to find angle between velocity and radial position
-		var theta_1 = Math.asin(p1.hmag/(Planet.Ratm*vcontact_mag));
-
-		var rcontact = vmult(Planet.Ratm, [Math.cos(theta_contact), Math.sin(theta_contact)]);
-
-		// The sines and cosines here have been chosen to give the velocity as [vr, vtheta]
-		var vcontact = vmult(vcontact_mag, [-Math.cos(theta_1+theta_contact), -Math.sin(theta_1+theta_contact)]);
-
-		// F is a function.
-		var F = in_atmo_force( d, m, A, Planet, orbitDir );
-
-		// Integrate path in atmosphere.
-		var rvt = integrate_path(F, m, rcontact, vcontact, dt, Planet);
-
-		if (vnorm(rvt.rf) >= Planet.Rmin) {// If not, we've impacted!
-			var p2 = get_orbit_params(rvt.rf, rvt.vf, Planet);
-			if (p2.ep < 0) {
-				rap_out = (1+p2.ec)*p2.a;	// Tentative apoapse distance
-				if (rap_out > Planet.SOI) { // Post aerobrake SOI escape!
-					rap_out = Planet.SOI+1;
-					return rap_out;
-				}
-				//console.log('Capture!');
-			} else {
-				rap_out = Planet.SOI+1;	// Parabolic or hyperbolic escape
-				//console.log('Escape!');
-				return rap_out;
-			}
-		} else {
-			// Impact!
-			//console.log('Impact!');
-			rap_out = Planet.Rmin;
-			return rap_out;
-		}
-		final_orbit_params = get_orbit_params(rvt.rf, rvt.vf, Planet);
-		return rap_out;
-	};*/
-
 	// assumes argument of periapsis is zero
+	// returns r and v as 2d-vectors
 	this.cartesianFromKeplerian = function(kep, Planet) {
 		var nu = kep.nu;
 		var a = kep.a;
@@ -314,7 +248,7 @@ $(document).ready(function() {
 		if ( kep.ec < 1 ) {
 			EA = 2 * Math.atan(Math.tan(nu/2) * Math.sqrt((1-ec)/(1+ec)));
 		} else {
-			EA = arctanh(Math.sqrt((ec-1)/(ec+1)) * Math.tan(nu/2.0));
+			EA = 2 * arctanh(Math.sqrt((ec-1)/(ec+1)) * Math.tan(nu/2.0));
 		}
 		return EA;
 	};
