@@ -176,8 +176,8 @@ $(document).ready(function() {
 		// Need to consider orbit direction!
 		var Kp = 1.2230948554874*0.008,
 			braking_functions = {
-				"prograde": function(r,v) {return vdiff(v, vmult(-1,[-2.0*Math.PI/Planet.Trot*r[1], 2.0*Math.PI/Planet.Trot*r[0]]))},
-				"retrograde": function(r,v) {return vdiff(v, vmult(1,[-2.0*Math.PI/Planet.Trot*r[1], 2.0*Math.PI/Planet.Trot*r[0]]))},
+				"prograde": function(r,v) {return vdiff(v, vmult(1,[-2.0*Math.PI/Planet.Trot*r[1], 2.0*Math.PI/Planet.Trot*r[0]]))},
+				"retrograde": function(r,v) {return vdiff(v, vmult(-1,[-2.0*Math.PI/Planet.Trot*r[1], 2.0*Math.PI/Planet.Trot*r[0]]))},
 				"ignore": function(r,v) {return v;}
 			},
 			v_surface = braking_functions[orbitDir]; // velocity relative to the surface
