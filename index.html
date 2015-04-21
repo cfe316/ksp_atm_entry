@@ -47,7 +47,7 @@
 			<p>
 			Given a current altitude, orbital velocity, and periapsis, we have enough information to resolve the orbit of the ship (there are some ambiguities in orientation, but they do not matter for this problem).
 			The point of intersection of this orbit with the atmosphere and the velocity of the ship at that point are calculated. Using these data, the trajectory in the atmosphere is determined using numerical methods.
-			If the ship reaches the ground, the time and altitude of maximum drag and of reaching 250 m/s will be given, and the time of landing/impact (assuming no parachutes) will be given.
+			If the ship reaches the ground, the time and altitude of maximum drag and of reaching 250 m/s (in the Orbital frame, not the Surface frame) will be given, and the time of landing/impact (assuming no parachutes) will be given.
 			If the ship escapes, the velocity at which the ship escapes the atmosphere is found, and used to compute the new orbit.
 			</p>
 			<h2>Q&amp;A</h2>
@@ -155,13 +155,13 @@
 							</div>
 					</div>
 					<div class="control-group">
-							<label class="control-label" for="outputChuteTime">Time to 250 m/s</label>
+							<label class="control-label" for="outputChuteTime">Time to 250 m/s (orbital)</label>
 							<div class="controls">
 								<input type="text" id="outputChuteTime" class="uneditable-input" disabled>
 							</div>
 					</div>
 					<div class="control-group">
-							<label class="control-label" for="outputChuteAlt">Altitude at 250 m/s</label>
+							<label class="control-label" for="outputChuteAlt">Altitude at 250 m/s (orbital)</label>
 							<div class="controls">
 								<input type="text" id="outputChuteAlt" class="uneditable-input" disabled>
 							</div>
