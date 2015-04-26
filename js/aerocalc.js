@@ -2,6 +2,7 @@
 $(document).ready(function() {
 (function() {
 
+	// Planet definitions
 	this.mkPlanet = function(Rmin, Ratm, SOI, mu, H0, P0, Trot) {
 		return {
 			Rmin: Rmin,	// Equatorial Radius (m)
@@ -34,9 +35,9 @@ $(document).ready(function() {
 		var myM = Math.floor( sRemainder / MINUTES);
 		sRemainder %= MINUTES;
 		var ts = sRemainder.toFixed(0) + "s"; //time string
-		if (myM > 0 || myH > 0 || myD > 0) { ts = myM + "m " + ts; }
-		if (           myH > 0 || myD > 0) { ts = myH + "h " + ts; }
-		if (                      myD > 0) { ts = myD + "d " + ts; }
+		if (myM > 0 || myH > 0 || myD > 0) {ts = myM + "m " + ts;}
+		if (           myH > 0 || myD > 0) {ts = myH + "h " + ts;}
+		if (                      myD > 0) {ts = myD + "d " + ts;}
 		
 		return ts;
 	};
@@ -117,6 +118,7 @@ $(document).ready(function() {
 
 		var curr_ad = -1, maxDrag = -1, hMaxDrag = -1, tMaxDrag = -1;
 
+		var v_surface = surface_velocity(Planet, orbitDir);
 		var CHUTE_SAFE_V = 250;
 		var chuteSafeVReached = false;
 		var hChuteSafe = -1, tChuteSafe = -1;
@@ -143,7 +145,8 @@ $(document).ready(function() {
 				tMaxDrag = t;
 			}
 
-			if(vnorm(v) < CHUTE_SAFE_V && chuteSafeVReached == false){
+			// If surface velocity is less than CHUTE_SAFE_V...
+			if(vnorm(v_surface(r,v)) < CHUTE_SAFE_V && chuteSafeVReached == false){
 				chuteSafeVReached = true;
 				hChuteSafe = vnorm(r);
 				tChuteSafe = t;
@@ -170,17 +173,22 @@ $(document).ready(function() {
 		return {ep: ep, ec: ec, a: a, hmag: hmag, rpe: rpe, rap: rap, nu: nu};
 	};
 
+	// Returns a function that gives the velocity in the Surface frame.
+	this.surface_velocity = function(Planet, orbitDir){
+		var velocity_functions = {
+				"prograde": function(r,v) {return vdiff(v, vmult(1,[-2.0*Math.PI/Planet.Trot*r[1], 2.0*Math.PI/Planet.Trot*r[0]]))},
+				"retrograde": function(r,v) {return vdiff(v, vmult(-1,[-2.0*Math.PI/Planet.Trot*r[1], 2.0*Math.PI/Planet.Trot*r[0]]))},
+				"ignore": function(r,v) {return v;}
+			};
+		return velocity_functions[orbitDir]; // velocity relative to the surface
+	};
+
 	// Return a function describing the drag force while in atmosphere: 
 	// The function definition depends on whether the user has indicated a prograde or retrograde orbit, or to ignore the planet's rotation.
 	this.drag_force = function(d, m, A, Planet, orbitDir) {
 		// Need to consider orbit direction!
-		var Kp = 1.2230948554874*0.008,
-			braking_functions = {
-				"prograde": function(r,v) {return vdiff(v, vmult(1,[-2.0*Math.PI/Planet.Trot*r[1], 2.0*Math.PI/Planet.Trot*r[0]]))},
-				"retrograde": function(r,v) {return vdiff(v, vmult(-1,[-2.0*Math.PI/Planet.Trot*r[1], 2.0*Math.PI/Planet.Trot*r[0]]))},
-				"ignore": function(r,v) {return v;}
-			},
-			v_surface = braking_functions[orbitDir]; // velocity relative to the surface
+		var Kp = 1.2230948554874*0.008;
+		var v_surface = surface_velocity(Planet, orbitDir);
 		return function(r,v){
 				return vmult(-0.5*Kp*Planet.P0*Math.exp((Planet.Rmin-vnorm(r))/Planet.H0) * vnorm(v_surface(r,v))*d*m*A, v_surface(r,v)); // drag
 			};
@@ -193,9 +201,9 @@ $(document).ready(function() {
 		};
 	};
 
+	this.cartesianFromKeplerian = function(kep, Planet) {
 	// assumes argument of periapsis is zero
 	// returns r and v as 2d-vectors
-	this.cartesianFromKeplerian = function(kep, Planet) {
 		var nu = kep.nu;
 		var a = kep.a;
 		var ec = kep.ec;
@@ -203,7 +211,6 @@ $(document).ready(function() {
 		var r = [ dist * Math.cos(nu), dist * Math.sin(nu) ];
 		var vmag = Math.sqrt(Planet.mu/( a * (1 - ec*ec)));
 		var v = [ - vmag * Math.sin(nu), vmag * ( ec + Math.cos(nu)) ];
-
 		return {r: r, v: v};
 	}
 
@@ -215,10 +222,10 @@ $(document).ready(function() {
 		var rap = (1+ec)*a; // Apoapsis distance
 		// current true anomaly nu (assuming the rocket is on the way down).
 		var nu = - Math.acos((a * (1 - ec*ec) - r) / ( ec * r) );
-
 		return {ep: ep, ec: ec, a: a, rpe: rpe, rap: rap, nu: nu};
 	};
 
+	// Get true anomaly of the point where the orbit enters the atmosphere.
 	this.nuOfAtmosphereEntry = function(kep, Planet) {
 		//Assuming the rocket is on the way down...
 		var Ratm = Planet.Ratm;
@@ -229,7 +236,6 @@ $(document).ready(function() {
 	};
 
 
-	// get mean anomaly from eccentric anomaly
 	this.MeanAnomFromEccAnom = function(kep, EA) {
 		var MA;
 		if ( kep.ec < 1 ) {
@@ -240,9 +246,9 @@ $(document).ready(function() {
 		return MA;
 	};
 
+	this.EccAnomFromTrueAnom = function(kep, nu) {
 	// For elliptic cases from wikipedia.org/wiki/Eccentric_anomaly
 	// For hyperbolic case from http://mmae.iit.edu/~mpeet/Classes/MMAE441/Spacecraft/441Lecture17.pdf
-	this.EccAnomFromTrueAnom = function(kep, nu) {
 		var EA;
 		var ec = kep.ec;
 		if ( kep.ec < 1 ) {
@@ -253,7 +259,7 @@ $(document).ready(function() {
 		return EA;
 	};
 
-	// Composition of the two functions
+	
 	this.MeanAnomFromTrueAnom = function(kep, nu){
 		return MeanAnomFromEccAnom(kep, EccAnomFromTrueAnom(kep, nu));
 	};
@@ -267,6 +273,7 @@ $(document).ready(function() {
 		return perFac * Math.abs(MA1 - MA2);
 	};
 
+	// Get the time until the craft enters the atmosphere from input position.
 	this.timeToAtmEntry = function(r, v, rpe, Planet) {
 		var kep = keplerianFromRVP(r, v, rpe, Planet);
 		var nu1 = kep.nu;
@@ -275,6 +282,7 @@ $(document).ready(function() {
 		return timeToAtm;
 	};
 
+	// Compute the Delta V required to circularize an orbit after aerobraking
 	this.apoCircDeltaV = function(kep, Planet) {
 		var rap = kep.rap; // radius of apoapsis
 		var a = kep.a;
@@ -361,7 +369,7 @@ $(document).ready(function() {
 	var that = this;
 
 	$('#go').click(function() {
-
+		// Reset input and output fields
 		$('#inputAlt,#inputVel,#inputPE,#outputType').parent().parent().removeClass('error');
 		$('#outputAtmEntryTime').val("");
 		$('#outputType').val("");
@@ -378,6 +386,7 @@ $(document).ready(function() {
 		$('#outputApoV').val("");
 		$('#outputApoCircDV').val("");
 
+		// Get and parse input fields
 		var Planet = that.Planets[$('#inputBody').val()];
 		var r = parseUnitFloat($('#inputAlt').val(), 10)+Planet.Rmin;	// input altitude
 		var v = parseFloat($('#inputVel').val(), 10);			// input velocity
